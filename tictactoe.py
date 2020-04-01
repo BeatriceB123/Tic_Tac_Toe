@@ -36,7 +36,7 @@ class ProblemState:
     # -1 va fi calculatorul, +1 va fi omul
     def __init__(self):
         self.square = np.zeros((3, 3))
-        self.moves_next = -1
+        self.moves_next = 1
 
     def __eq__(self, other):
         return self.moves_next == other.moves_next
@@ -161,6 +161,7 @@ def get_state_score_naive(state):
         # avem deja 3 intr-o linie
         if state.square[li[0][0]][li[0][1]] == state.square[li[1][0]][li[1][1]] == state.square[li[2][0]][li[2][1]]:
             score -= 100 * state.square[li[0][0]][li[0][1]]
+            return score
         # avem 2 piese de culoarea noastra care nu au nimic intre ele (inca mai putem folosi aceasta linie)
         elif state.square[li[0][0]][li[0][1]] == state.square[li[1][0]][li[1][1]] and state.square[li[1][0]][li[1][1]] != 0:
             if state.square[li[2][0]][li[2][1]] == 0:
@@ -181,24 +182,84 @@ def get_state_score_naive(state):
     return score
 
 
+def get_state_score_another_function(state):
+    score = 0
+    for li in positions_to_analize:
+        # avem deja 3 intr-o linie
+        if state.square[li[0][0]][li[0][1]] == state.square[li[1][0]][li[1][1]] == state.square[li[2][0]][li[2][1]]:
+            score -= 100 * state.square[li[0][0]][li[0][1]]
+            return score
+    return score
+
+
+def get_possible_actions(state):
+    res = []
+    for i in range(3):
+        for j in range(3):
+            if state.square[i][j] == 0:  # free space
+                if is_valid_transition(state, i, j):
+                    res.append((i, j))
+    return res
+
+
 def computer_moves_based_on_one_level_results(state):
     li = []   # list of possible states, with maximum scores
     max_score = -oo
-    for i in range(3):
-        for j in range(3):
-            if state.square[i][j] == 0:   # free space
-                if is_valid_transition(state, i, j):
-                    new_state = make_transition(state, i, j)
-                    new_score = get_state_score_naive(new_state)
-                    if new_score == max_score:
-                        li.append((new_state, new_score, i, j))
-                    elif new_score > max_score:
-                        li = [(new_state, new_score, i, j)]
-                        max_score = new_score
+    for i, j in get_possible_actions(state):
+        new_state = make_transition(state, i, j)
+        new_score = get_state_score_naive(new_state)
+        if new_score == max_score:
+            li.append((new_state, new_score, i, j))
+        elif new_score > max_score:
+            li = [(new_state, new_score, i, j)]
+            max_score = new_score
     chosed_move = random.choice(li)
     print("Mutare Aleasa: ", chosed_move)
     state = make_transition(state, chosed_move[2], chosed_move[3])
     return state
+
+
+# returneaza actiunea cea mai buna, si valoare care se obtine cu ea
+def minmax(state, is_maximized_level, current_depth, maxim_depth):
+    if is_final_state(state) or current_depth > maxim_depth:
+        return (None, None), get_state_score_naive(state), current_depth
+
+    all_val = []
+    for i, j in get_possible_actions(state):
+        val = minmax(make_transition(state, i, j), 1 - is_maximized_level, current_depth + 1, maxim_depth)
+        all_val.append([(i, j), val[1], val[2]])
+
+    if is_maximized_level:
+        best_result = -oo
+        best_depth = 10
+        best_results = []
+        for aux, v, c in all_val:
+            if c <= best_depth:
+                if v > best_result:
+                    best_results = [(aux, v, c)]
+                    best_result = v
+                    best_depth = c
+                elif v == best_result:
+                    best_results.append([aux, v, c])
+                    best_depth = c
+    else:
+        best_result = oo
+        best_results = []
+        best_depth = 10
+        for aux, v, c in all_val:
+            if c <= best_depth:
+                if v < best_result:
+                    best_results = [(aux, v, c)]
+                    best_result = v
+                    best_depth = c
+                elif v == best_result:
+                    best_results.append([aux, v, c])
+                    best_depth = c
+    if current_depth == 0:
+        print(all_val)
+        print(best_results)
+
+    return best_results[0]
 
 
 def play(state):
@@ -216,7 +277,9 @@ def play(state):
                     state = process_the_event(state, event.pos)
                     print(get_state_score_naive(state))
         elif state.moves_next == -1:
-            state = computer_moves_based_on_one_level_results(state)
+            # result = minmax(state, -1, 0, 0)
+            result = minmax(state, -1, 0, 1)
+            state = make_transition(state, result[0][0], result[0][1])
             print(get_state_score_naive(state))
 
         update_board(state)
@@ -225,4 +288,3 @@ def play(state):
 
 if __name__ == '__main__':
     play(ProblemState())
-
